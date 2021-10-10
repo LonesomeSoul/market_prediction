@@ -1,4 +1,4 @@
-Parts of the repository: code in .py, .ipynb (Jupyter Notebook) and data to train a model - US1.AAPL_210501_210901.csv
+Parts of the repository: code in .py, .ipynb (Jupyter Notebook) and data to train a model - US1.AAPL_200501_210901.csv
 
 Steps to run the code:
 1) download the files
