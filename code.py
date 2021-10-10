@@ -5,6 +5,7 @@
 
 
 import string 
+import math
 import numpy as np 
 import pandas as pd 
 pd.set_option('display.max_columns', 100) 
@@ -35,7 +36,7 @@ import datetime
 # In[3]:
 
 
-df=pd.read_csv(r'D:\учеба\Kaggle\Биржа\US1.AAPL_210501_210901.csv' ,sep=',')
+df=pd.read_csv(r'D:\учеба\Kaggle\Биржа\US1.AAPL_200501_210901.csv' ,sep=',')
 
 
 # In[4]:
@@ -104,6 +105,18 @@ for i in range(size-1):
     df['label'][i]=(df['<CLOSE>'][i+1])
 
 
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
 # In[8]:
 
 
@@ -125,35 +138,53 @@ from sklearn.model_selection import train_test_split
 # In[9]:
 
 
-y=df['label'][0:size-1]
+df_train.values
 
 
 # In[10]:
 
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.20, random_state =0)
+y=df['label'][0:size-1]
 
 
 # In[11]:
+
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.20, random_state =0)
+
+
+# In[12]:
 
 
 X_train = X_train.fillna(X_train.mean())
 X_test = X_test.fillna(X_test.mean())
 
 
-# In[19]:
+# In[13]:
 
 
 X_train
 
 
-# In[12]:
+# In[ ]:
+
+
+
+
+
+# In[14]:
 
 
 y_test=y_test.reset_index(drop=True)
 
 
-# In[13]:
+# In[ ]:
+
+
+
+
+
+# In[15]:
 
 
 # обучение
@@ -177,22 +208,164 @@ for depth in range(count):
     mae[depth]/=y_pred.size
 
 
-# In[14]:
+# In[16]:
+
+
+y_pred=regr.predict(X_test)
+X_test, y_pred
+
+
+# In[17]:
 
 
 err=pd.DataFrame(data={'mse':mean_square_err,'mae':mae,'dev':deviation})
 
 
-# In[15]:
+# In[18]:
 
 
 err
 
 
-# In[16]:
+# In[19]:
 
 
 # итоговая модель:
 model = RandomForestRegressor(max_depth=8, random_state=0,min_samples_leaf=5)
 model.fit(X_train,y_train)
+
+
+# In[20]:
+
+
+model.feature_importances_
+
+
+# In[21]:
+
+
+#Модель нейронной сети PyTorch
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torchvision
+
+min_max_scaler = sklearn.preprocessing.MinMaxScaler()
+
+train_data=(torch.tensor(min_max_scaler.fit_transform (X_train.values)))
+train_target=(torch.tensor( (y_train.values)))
+test_data=(torch.tensor(min_max_scaler.fit_transform (X_test.values)))
+test_target=(torch.tensor( (y_test.values)))
+
+
+# In[36]:
+
+
+class Net(nn.Module):
+    def __init__(self,drop):
+        super(Net, self).__init__()
+        self.fc1 = nn.Linear(5, 200)
+        self.fc2 = nn.Linear(200, 200)
+        self.fc3 = nn.Linear(200, 100)
+        self.fc4 = nn.Linear(100, 1)
+        self.dropout = nn.Dropout(drop)
+    def forward(self, x):
+        #x = F.logsigmoid(self.fc1(x))
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        x = self.dropout(x)
+        x = self.fc4(x)
+        return x
+
+
+# In[38]:
+
+
+#обучение модели и возврат mae
+
+def checkloss(drop=0.1,learning_rate=0.01, batch_size=30):
+    epochs=10
+    train_batches=math.ceil(X_train["time"].size/batch_size)-1
+    net = Net(drop)
+    optimizer = torch.optim.SGD(net.parameters(), lr=learning_rate, momentum=0.9)
+    #criterion = nn.MSELoss()
+    criterion=nn.L1Loss()
+    for epoch in range(epochs):
+        for batch in range(train_batches):
+            optimizer.zero_grad()
+            net_out=net(train_data[batch*batch_size:(batch_size*(batch+1))].float())
+            loss = criterion(net_out, train_target[batch*batch_size:(batch_size*(batch+1))].float())
+            loss.backward()
+            optimizer.step()
+    mae=0
+    net_out=net(test_data.float())
+    for i in range(test_data.shape[0]):
+        mae+=abs(net_out[i]-test_target[i])
+    mae/=test_data.shape[0]
+    mae
+    return mae
+
+
+# In[39]:
+
+
+#Обучение модели и ее возврат
+
+def fit(drop=0.1,learning_rate=0.01, batch_size=30):
+    epochs=10
+    train_batches=math.ceil(X_train["time"].size/batch_size)-1
+    net = Net(drop)
+    optimizer = torch.optim.SGD(net.parameters(), lr=learning_rate, momentum=0.9)
+    #criterion = nn.MSELoss()
+    criterion=nn.L1Loss()
+    for epoch in range(epochs):
+        for batch in range(train_batches):
+            optimizer.zero_grad()
+            net_out=net(train_data[batch*batch_size:(batch_size*(batch+1))].float())
+            loss = criterion(net_out, train_target[batch*batch_size:(batch_size*(batch+1))].float())
+            loss.backward()
+            optimizer.step()
+    return net
+
+
+# In[37]:
+
+
+#grid search
+
+search=pd.DataFrame(columns=["drop","lr","batch","loss"])
+count=0
+for i in np.arange(0.0,0.51,0.05):
+    for j in np.arange(0.001,0.01,0.001):
+        for k in np.arange(20,71,5):
+            search.loc[count]=[i,j,k,checkloss(i,j,k).detach()]
+            count+=1
+search
+
+
+# In[ ]:
+
+
+gsmin=search["loss"].min()
+minid=0
+for i in range(search["drop"].size):
+    if (search["loss"][i]==gsmin):
+        minid=i
+search.loc[minid]
+#drop=0, lr=0.006, batch=20, mae=66.7938
+
+
+# In[ ]:
+
+
+net=fit(0,0.006,20)
+
+
+# In[ ]:
+
+
+#Итоговая nn модель
+net
 
