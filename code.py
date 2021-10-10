@@ -363,9 +363,17 @@ search.loc[minid]
 net=fit(0,0.006,20)
 
 
+# In[40]:
+
+
+#Итоговые модели:
+
+net   #Pytorch nn
+model #skelarn random forest
+
+
 # In[ ]:
 
 
-#Итоговая nn модель
-net
+
 
